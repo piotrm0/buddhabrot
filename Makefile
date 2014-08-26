@@ -1,8 +1,11 @@
 temp: example
 	./example
 
-example: example.o
+example: ui.o example.o 
 	ghc -package OpenGL -package sdl2 $^ -o example
+
+example.o: example.hs ui.hs
+ui.o: ui.hs
 
 run: buddhabrot
 	./buddhabrot
