@@ -1,70 +1,83 @@
-{-# LANGUAGE ImplicitParams, RecordWildCards, NoMonomorphismRestriction #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 -- adapted from https://gist.github.com/uhef/be090579be5cc5fb0db1
 
 module Main where
 
---import Control.Monad
---import Control.Applicative 
---import Data.Function
---import Data.Array.Storable
---import Foreign (with, nullPtr, toBool)
---import Foreign.C.String
---
 import Graphics.Rendering.OpenGL
---import Graphics.Rendering.OpenGL.GL.Shaders.ProgramObjects
---import Graphics.Rendering.OpenGL.GL.VertexArrays
---import System.Environment
---import Foreign.C.Types
---import Foreign.Marshal.Alloc
---import Foreign.Storable
---import Data.Bits ((.|.))
+import Graphics.GLUtil (makeBuffer,
+                        getAttrib,setAttrib,enableAttrib,
+                        ShaderProgram,simpleShaderProgram,program,
+                        makeVAO,withVAO,
+                        setUniform)
+
+import Foreign.Storable
 
 import Ui
+import Gl
 
-data GlState =
-    GlState {rot1 :: GLfloat,
-             rot2 :: GLfloat}
+data GfxState =
+    GfxState {shaders :: ShaderProgram,
+              vao_quad :: VertexArrayObject}
 
-handlerMark :: GlState -> GLfloat -> GlState
-handlerMark state dt =
-    state {rot1 = (rot1 state) + 1.0 * dt,
-           rot2 = (rot2 state) + 1.1 * dt}
+handlerMark :: GfxState -> GLfloat -> GfxState
+handlerMark state dt = state
 
 handlerDraw state = do
   clear [ColorBuffer,DepthBuffer]
-  loadIdentity
-  color $ Color3 0.8 0.4 (0.9 :: GLfloat)
-  scale 0.7 0.7 (0.7 :: GLfloat)
-  translate $ Vector3 0.0 0.0 (-10.0 :: GLfloat)
-  rotate (rot1 state) $ Vector3 0 0 1
-  rotate (rot2 state) $ Vector3 0 1 0
-  cube 1.0
+  checkErrors "clearing buffers"
+
+  let prog = (shaders state)
+  let p = program prog 
+
+  withVAO (vao_quad state) $ do
+    currentProgram $= Just p
+    checkErrors "setting currentProgram"
+
+    drawArrays TriangleStrip 0 4
+    checkErrors "drawing array"
+
   return ()
 
-handlerInit w h = do
+handlerResize state w h = do
   viewport $= (Position 0 0, Size w h)
-  matrixMode $= Projection
-  loadIdentity
-  perspective 45 ((fromIntegral w) / (fromIntegral h)) 0.1 100
-  matrixMode $= Modelview 0
-  return $ GlState {rot1 = 0.0,
-                    rot2 = 0.0}
+  checkErrors "seting up view"
+  return state
+
+handlerInit w h = do
+  myVBO <- makeBuffer ArrayBuffer
+           [-1.0, -1.0 :: GLfloat, --, 0, 0,  :: GLfloat,
+            -1.0,  1.0, -- 0, 1, 
+             1.0, -1.0, --1, 0,
+             1.0,  1.0] --,1, 1]
+
+  checkErrors "loading arraybuffer"
+
+  prog <- simpleShaderProgram "simple.vert" "mandel.frag"
+  checkErrors "loading shaders"
+
+  myVAO <- makeVAO $ do
+    enableAttrib prog "position"
+    checkErrors "enablingAttrib position"
+
+    bindBuffer ArrayBuffer $= Just (myVBO)
+    checkErrors "binding ArrayBuffer"
+
+    let stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
+    setAttrib prog "position" ToFloat $ VertexArrayDescriptor 2 Float stride offset0
+
+  clearColor $= Color4 0.0 0.0 0.5 1.0
+
+  let state = GfxState {shaders = prog,
+                        vao_quad = myVAO}
+
+  handlerResize state w h
  
-cube :: GLfloat -> IO ()
-cube w = renderPrimitive Quads $ mapM_ vertex3f
-  [ ( w, w, w), ( w, w,-w), ( w,-w,-w), ( w,-w, w),
-    ( w, w, w), ( w, w,-w), (-w, w,-w), (-w, w, w),
-    ( w, w, w), ( w,-w, w), (-w,-w, w), (-w, w, w),
-    (-w, w, w), (-w, w,-w), (-w,-w,-w), (-w,-w, w),
-    ( w,-w, w), ( w,-w,-w), (-w,-w,-w), (-w,-w, w),
-    ( w, w,-w), ( w,-w,-w), (-w,-w,-w), (-w, w,-w) ]
-
-vertex3f :: (GLfloat, GLfloat, GLfloat) -> IO ()
-vertex3f (x, y, z) = vertex $ Vertex3 x y z
-
 main = do
       startLoop
-       (GfxHandlers {handleInit = handlerInit,
-                     handleMark = handlerMark,
-                     handleDraw = handlerDraw})
+       (GfxHandlers {handleInit   = handlerInit,
+                     handleResize = handlerResize,
+                     handleMark   = handlerMark,
+                     handleDraw   = handlerDraw})
     where ?log = putStrLn

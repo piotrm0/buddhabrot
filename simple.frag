@@ -1,7 +1,12 @@
-#version 140
+#version 150 core
 
-out vec3 color;
+in vec4 passColor;
+out vec4 color;
 
 void main() {
-  color = vec3(1,0,0);
+  if (passColor.x + passColor.y > 0) {
+    color = passColor;
+  } else {
+    color = vec4(1,0,0,1);
+  }
 }

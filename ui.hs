@@ -2,20 +2,15 @@
 module Ui 
     (startLoop, GfxHandlers(..)) where
 
---import Control.Monad
---import Control.Applicative 
---import Data.Function
---import Data.Array.Storable
---import Foreign (with, nullPtr, toBool)
 import Graphics.UI.SDL as SDL
 import Graphics.Rendering.OpenGL.Raw.Types
---import Graphics.Rendering.OpenGL
 import System.Environment
 
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Storable
+import Foreign.Ptr
 
 import Data.Bits ((.|.))
 
@@ -26,8 +21,9 @@ data UiState =
 
 data GfxHandlers s =
     GfxHandlers {handleInit :: CInt -> CInt -> IO (s),
-                handleMark :: s -> GLfloat -> s,
-                handleDraw :: s -> IO ()}
+                 handleResize :: s -> GLint -> GLint -> IO (s),
+                 handleMark :: s -> GLfloat -> s,
+                 handleDraw :: s -> IO ()}
 
 loop :: GfxHandlers s -> s -> UiState -> IO (Bool)
 loop glHandlers glState uiState = do
@@ -41,6 +37,11 @@ loop glHandlers glState uiState = do
         do
           putStrLn "quitting from keyboard"
           return True
+    Just (WindowEvent 512 _ _ 6 w h) ->
+        do
+          putStrLn $ "resizing to " ++ (show w) ++ "," ++ (show h)
+          newstate <- (handleResize glHandlers) glState (fromIntegral w) (fromIntegral h)
+          loop glHandlers newstate uiState
     Just (MouseMotionEvent _ _ _ _ _ _ _ _ _) -> do again
     Just (TouchFingerEvent _ _ _ _ _ _ _ _ _) -> do again
     Just (MultiGestureEvent _ _ _ _ _ _ _ _) -> do again
@@ -73,8 +74,19 @@ initUI =
                $ windowFlagOpenGL .|. windowFlagResizable
 
       ?log "creating GL context"
-      glCreateContext window
 
+      SDL.glSetAttribute glAttrContextMajorVersion 3 -- 4
+      SDL.glSetAttribute glAttrContextMinorVersion 2 -- 1
+      SDL.glSetAttribute glAttrContextProfileMask glProfileCore
+
+      SDL.glSetAttribute glAttrDoubleBuffer 1
+      SDL.glSetAttribute glAttrDepthSize 24
+
+      context <- glCreateContext window
+
+      if nullPtr == context then
+          error "could not create gl context"
+      else do
       return $ UiState {mainWindow = window,
                         mainWidth = initWidth,
                         mainHeight = initHeight}

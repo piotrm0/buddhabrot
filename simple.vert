@@ -1,8 +1,10 @@
-#version 140
-
-in vec3 vertexPosition_modelspace;
-
-void main() {
-  gl_Position.xyz = vertexPosition_modelspace;
-  gl_Position.w = 1.0;
+#version 150 core
+ 
+in vec2 position;
+in vec3 inColor;
+out vec4 passColor;
+ 
+void main(void) {
+  gl_Position = vec4(position,0.0,1.0);
+  passColor = vec4(gl_Position);
 }
