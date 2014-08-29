@@ -1,12 +1,11 @@
 #version 150 core
 
+in vec2 texCoord;
 in vec4 passColor;
 out vec4 color;
 
+uniform sampler2D tex;
+
 void main() {
-  if (passColor.x + passColor.y > 0) {
-    color = passColor;
-  } else {
-    color = vec4(1,0,0,1);
-  }
+  color = texture(tex, texCoord) * 20;
 }
