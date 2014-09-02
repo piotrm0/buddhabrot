@@ -4,7 +4,7 @@ temp: example
 	./example +RTS -N -sstderr
 
 example: ui.o gl.o par.o example.o 
-	$(GHC) -package threads -package GLUtil -package OpenGL -package sdl2 $^ -o example
+	$(GHC) -package priority-queue -package threads -package GLUtil -package OpenGL -package sdl2 $^ -o example
 
 example.o: example.hs gl.hs ui.hs par.hs
 ui.o: ui.hs

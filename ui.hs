@@ -1,6 +1,6 @@
 {-# LANGUAGE ImplicitParams, RecordWildCards, NoMonomorphismRestriction #-}
 module Ui 
-    (startLoop, GfxHandlers(..)) where
+    (UiOps(..), startLoop, GfxHandlers(..)) where
 
 import Graphics.UI.SDL as SDL
 import Graphics.Rendering.OpenGL.Raw.Types
@@ -15,12 +15,17 @@ import Foreign.Ptr
 import Data.Bits ((.|.))
 
 data UiState =
-    UiState {mainWindow :: Window,
+    UiState {glContext :: SDL.GLContext,
+             mainWindow :: Window,
              mainWidth :: CInt,
              mainHeight :: CInt}
 
+data UiOps =
+    UiOps {takeContext :: IO (),
+           swapBuffers :: IO ()}
+
 data GfxHandlers s =
-    GfxHandlers {handleInit :: CInt -> CInt -> IO (s),
+    GfxHandlers {handleInit :: CInt -> CInt -> UiOps -> IO (s),
                  handleResize :: s -> GLint -> GLint -> IO (s),
                  handleMark :: s -> GLfloat -> s,
                  handleDraw :: s -> IO ()}
@@ -51,16 +56,32 @@ loop glHandlers glState uiState = do
           again
     Nothing -> do redraw
   where redraw = do
-          (handleDraw glHandlers) glState 
-          glSwapWindow (mainWindow uiState)
+          (handleDraw glHandlers) glState
           delay (fromIntegral 50)
           loop glHandlers ((handleMark glHandlers) glState 1.0) uiState
         again = do
           loop glHandlers glState uiState
 
+createGLContext :: SDL.Window -> IO (SDL.GLContext)
+createGLContext w = do
+    SDL.glSetAttribute glAttrContextMajorVersion 3 -- 4
+    SDL.glSetAttribute glAttrContextMinorVersion 2 -- 1
+    SDL.glSetAttribute glAttrContextProfileMask glProfileCore
+    SDL.glSetAttribute glAttrDoubleBuffer 1
+    SDL.glSetAttribute glAttrDepthSize 24
+    SDL.glSetAttribute glAttrShareWithCurrentContext 1
+    context <- glCreateContext w
+    if nullPtr == context then
+        error "could not create gl context"
+    else do return context
+
+takeGLContext uistate = do
+  SDL.glMakeCurrent (mainWindow uistate) (glContext uistate)
+  return ()
+
 initUI =
-    let initWidth = 640 in
-    let initHeight = 480 in
+    let initWidth = 1200 :: CInt in
+    let initHeight = 1024 :: CInt in
 
     do
       ?log "initing SDL"
@@ -75,21 +96,17 @@ initUI =
 
       ?log "creating GL context"
 
-      SDL.glSetAttribute glAttrContextMajorVersion 3 -- 4
-      SDL.glSetAttribute glAttrContextMinorVersion 2 -- 1
-      SDL.glSetAttribute glAttrContextProfileMask glProfileCore
+      context <- createGLContext window
 
-      SDL.glSetAttribute glAttrDoubleBuffer 1
-      SDL.glSetAttribute glAttrDepthSize 24
+      let uistate = UiState {glContext = context,
+                             mainWindow = window,
+                             mainWidth = initWidth,
+                             mainHeight = initHeight}
 
-      context <- glCreateContext window
+      return uistate
 
-      if nullPtr == context then
-          error "could not create gl context"
-      else do
-      return $ UiState {mainWindow = window,
-                        mainWidth = initWidth,
-                        mainHeight = initHeight}
+swapGLBuffers uistate =
+    do glSwapWindow (mainWindow uistate)
 
 pollAnEvent :: IO (Maybe Event)
 pollAnEvent = alloca doPoll
@@ -102,6 +119,10 @@ pollAnEvent = alloca doPoll
 startLoop glhandlers = do
   ?log "starting loop"
   uistate <- initUI
-  glstate <- (handleInit glhandlers) 640 480
+  glstate <- (handleInit glhandlers)
+             (mainWidth uistate)
+             (mainHeight uistate)
+             (UiOps {takeContext = takeGLContext uistate,
+                     swapBuffers = swapGLBuffers uistate})
   loop glhandlers glstate uistate
   where ?log = putStrLn
