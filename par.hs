@@ -12,7 +12,7 @@ doSome ci cmax cinc tg f =
     if ci < cmax then do
         Thread.forkIO tg $ do
           doSome (ci + cinc) cmax cinc tg f
-          forM_ [ci..ci+cinc-1] (\i -> f i)
+          forM_ [ci..ci+cinc-1] f
         return ()
     else return ()
 
@@ -25,6 +25,16 @@ forMrange_ i j f =
       tg <- Thread.new
       doSome i j each tg f
       Thread.wait tg
+
+forMrangeAsync_ :: Int -> Int -> (Int -> IO a) -> IO (Thread.ThreadGroup)
+forMrangeAsync_ i j f =
+    let jobs = (j - i + 1) :: Int in
+    let each = max 1 (quot jobs cores) in
+    do
+      putStrLn $ (show jobs) ++ " " ++ (show each)
+      tg <- Thread.new
+      doSome i j each tg f
+      return tg
 
     
             

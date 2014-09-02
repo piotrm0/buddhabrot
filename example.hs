@@ -34,6 +34,7 @@ import Gl
 data GfxState =
     GfxState {shaders :: ShaderProgram,
               tex :: TextureObject,
+              buff :: BufferObject,
 --              counts :: ST.STVector Int32 (ForeignPtr Int32),
               counts :: ST.IOVector CInt,
               vao_quad :: VertexArrayObject}
@@ -47,6 +48,13 @@ handlerDraw state = do
 
   let prog = (shaders state)
   let p = program prog 
+
+  bindBuffer PixelUnpackBuffer $= Just (buff state)
+  textureBinding Texture2D $= Just (tex state)
+  texImage2D Texture2D NoProxy 0 RGBA'
+                 (TextureSize2D width height) 0
+                 (PixelData RGBA UnsignedByte nullPtr)
+  bindBuffer PixelUnpackBuffer $= Nothing
 
   withVAO (vao_quad state) $ do
     currentProgram $= Just p
@@ -96,51 +104,68 @@ handlerInit w h = do
 
   clearColor $= Color4 0.0 0.0 0.5 1.0
 
+  pxBuff <- genObjectName
+  bindBuffer PixelUnpackBuffer $= Just pxBuff
+  bufferData PixelUnpackBuffer $= (fromIntegral (w * h * 4), nullPtr, StreamCopy)
+  checkErrors "creating pixel buffer name"
+ 
+  --  glGenBuffersARB()
+
+  --  Just ptr <- mapBuffer PixelUnpackBuffer WriteOnly
+  Just ptr <- mapBufferRange PixelUnpackBuffer 0 (fromIntegral (w * h * 4)) [Write, Unsychronized]
+  checkErrors "mapping buffer"
+
+  unmapBuffer PixelUnpackBuffer
+  checkErrors "unmapping buffer"
+
+  fPtr <- newForeignPtr_ ptr
+  --counts <- ST.new (width * height)
+  let counts = ST.unsafeFromForeignPtr0 fPtr (fromIntegral (w * h)) 
+
   TextureObject texid <- genObjectName
   checkErrors "creating texture objectName"
-
   let tex = TextureObject texid
-
   textureBinding Texture2D $= Just tex
+  textureFilter Texture2D $= ((Linear', Nothing), Linear')
   checkErrors "binding texture"
   
-  textureFilter Texture2D $= ((Nearest, Just Nearest), Nearest)
+  --  ST.unsafeWith counts $ \ptr -> do
+  --  texImage2D Texture2D NoProxy 0 RGBA'
+  --                 (TextureSize2D width height) 0
+  --                 (PixelData RGBA UnsignedByte ptr)
 
---  counts <- JuicyTypes.createMutableImage 640 480 (JuicyTypes.PixelRGBA8 0 0 0 255) 
+  texImage2D Texture2D NoProxy 0 RGBA'
+                 (TextureSize2D width height) 0
+                 (PixelData RGBA UnsignedByte nullPtr)
+  textureBinding Texture2D $= Nothing
+  checkErrors "texImage2d"
 
-  counts <- ST.new (width * height)
-  forM_ [0..width * height - 1] $ \i -> ST.write counts i 0
+  bindBuffer PixelUnpackBuffer $= Nothing
+  checkErrors "unbindBuffer"
+
   fillMandel counts
---  error "done"
+  --      generateMipmap' Texture2D
 
-  ST.unsafeWith counts $ \ptr -> do
-      texImage2D Texture2D NoProxy 0 RGBA'
-                     (TextureSize2D width height) 0
-                     (PixelData RGBA UnsignedByte ptr)
+  let state = GfxState {shaders = prog,
+                        counts = counts,
+                        buff = pxBuff,
+                        tex = tex,
+                        vao_quad = myVAO}
 
-      generateMipmap' Texture2D
+  handlerResize state w h
 
-      let state = GfxState {shaders = prog,
-                            counts = counts,
-                            tex = tex,
-                            vao_quad = myVAO}
-
-      handlerResize state w h
-
---fillMandel :: ST.MVector (PrimState IO) Int32 -> ST.MVector (PrimState IO) Int32
-
-doCol dat x = 
-    forM_ [0..height-1] $ \y -> do
-      let vecPos = width * x + y
-      let xf = ((fromIntegral x) / (width / 2)) - 1.0
-      let yf = ((fromIntegral y) / (height / 2)) - 1.0
+doCol dat y = 
+    let vecPos = width * y in
+    let yf = ((fromIntegral y) / (height / 2)) - 1.0 in
+    forM_ [0..width-1] $ \x -> do
+      let xf = ((fromIntegral x) / (width / 2)) - 1.5
       let m = mandel (Vertex2 xf yf)
-      ST.write dat vecPos (fromIntegral m)
+      ST.write dat (vecPos+x) (fromIntegral m)
 
 fillMandel dat = do
-  forMrange_ 0 (width-1) $ \x -> doCol dat x
+  forMrangeAsync_ 0 (height-1) $ \y -> doCol dat y
               
-iterations = 10
+iterations = 20
 mandel (Vertex2 r i) = length . takeWhile (\z -> magnitude z <= 2) .
                        take iterations $ iterate (\z -> z^2 + (r :+ i)) 0
  
