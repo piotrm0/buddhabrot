@@ -26,6 +26,35 @@ doFromQueue q = do
                   doFromQueue q
           Nothing -> return ()
 
+repeatM_ :: Int -> IO a -> IO ()
+repeatM_ jobs f = do
+  tg <- repeatMAsync_ jobs f
+  Thread.wait tg
+
+repeatMenqueue :: Int -> Queue (IO ()) -> IO () -> IO ()
+repeatMenqueue jobs q f =
+    let each = max 1 (quot jobs (16 * cores)) in
+    let sets = quot jobs each in
+    do 
+      forM_ [1..sets] $ \_ -> enqueue q $ do forM_ [1..each] $ \_ -> f
+
+runQueueAsync :: Int -> Queue (IO ()) -> IO (Thread.ThreadGroup)
+runQueueAsync coreshare q = do
+    tg <- Thread.new
+    spawnThreads tg (max 1 (quot cores coreshare)) $ do doFromQueue q
+    return tg
+
+repeatMAsync_ :: Int -> IO a -> IO (Thread.ThreadGroup)
+repeatMAsync_ jobs f =
+    let each = max 1 (quot jobs (8 * cores)) in
+    let sets = quot jobs each in
+    do 
+      q <- newQueue
+      forM_ [1..sets] $ \_ -> enqueue q $ do forM_ [1..each] $ \_ -> f
+      tg <- Thread.new
+      spawnThreads tg cores $ do doFromQueue q
+      return tg
+
 forMrange_ :: Int -> Int -> (Int -> IO a) -> IO ()
 forMrange_ i j f = do
   tg <- forMrangeAsync_ i j f

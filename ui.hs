@@ -52,12 +52,12 @@ loop glHandlers glState uiState = do
     Just (MultiGestureEvent _ _ _ _ _ _ _ _) -> do again
     Just e ->
         do
-          putStrLn $ "event: " ++ (show e)
+          --putStrLn $ "event: " ++ (show e)
           again
     Nothing -> do redraw
   where redraw = do
           (handleDraw glHandlers) glState
-          delay (fromIntegral 50)
+          delay (fromIntegral 10)
           loop glHandlers ((handleMark glHandlers) glState 1.0) uiState
         again = do
           loop glHandlers glState uiState
@@ -80,8 +80,8 @@ takeGLContext uistate = do
   return ()
 
 initUI =
-    let initWidth = 1200 :: CInt in
-    let initHeight = 1024 :: CInt in
+    let initWidth = (68 * 4) :: CInt in
+    let initHeight = (80 * 4) :: CInt in
 
     do
       ?log "initing SDL"

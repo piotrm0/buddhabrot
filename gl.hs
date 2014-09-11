@@ -17,10 +17,14 @@ import System.IO (hPutStrLn, stderr)
 
 import Graphics.Rendering.OpenGL.GL.PixelRectangles
 
-import Foreign (Ptr, Word8, alloca, peek)
+import Foreign (Ptr, Word8, Word16, alloca, peek)
 import qualified Data.Vector.Storable as V
 import qualified Codec.Picture as Juicy
 import qualified Codec.Picture.Types as JTypes
+import Codec.Picture ()
+import Codec.Picture.Types ()
+import qualified Data.Vector.Storable.Mutable as ST
+import Control.Monad.Primitive
 
 offset = plusPtr nullPtr
 offset0 = nullPtr
@@ -77,3 +81,9 @@ juicyLoadImageRaw file = do
             in V.unsafeWith dat $ \ptr ->
                 return $ Image (fromIntegral w, fromIntegral h) ptr 
         _ -> error "bad image colorspace or format"
+
+juicySaveImage file w h dat =
+    let img_mut = JTypes.MutableImage w h (dat :: (ST.IOVector (JTypes.PixelBaseComponent JTypes.PixelRGBA16))) in
+    do
+      img <- JTypes.unsafeFreezeImage (img_mut :: JTypes.MutableImage (PrimState IO) JTypes.PixelRGBA16)
+      Juicy.writePng file img

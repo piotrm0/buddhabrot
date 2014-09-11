@@ -1,21 +1,28 @@
 GHC = ghc -threaded -rtsopts
+SRCS = *.hs
+TARGETS = mandel buddha
 
-temp: example
-	./example +RTS -N -sstderr
+run: buddha
+	./buddha +RTS -N -sstderr
 
-example: ui.o gl.o par.o example.o 
-	$(GHC) -package priority-queue -package threads -package GLUtil -package OpenGL -package sdl2 $^ -o example
+# ui.o gl.o par.o example.o 
+# -package priority-queue -package threads -package GLUtil -package OpenGL -package sdl2 $^ -o mandel
+mandel: mandel.o
+	$(GHC) --make mandel.hs
 
-example.o: example.hs gl.hs ui.hs par.hs
-ui.o: ui.hs
-gl.o: gl.hs ui.hs
-par.o: par.hs
+buddha: buddha.o
+	$(GHC) --make buddha.hs
 
 #buddhabrot: buddhabrot.o
 #	$(GHC) -package OpenGL -package GLUT $^ -o buddhabrot
 
 clean:
-	rm -Rf *.hi *.o buddhabrot example
+	rm -Rf *.hi *.o $(TARGETS) .dep
 
-%.o: %.hs
+%.o %.hi: %.hs
 	$(GHC) -c $<
+
+include .dep
+
+.dep: $(SRCS)
+	$(GHC) -M -dep-makefile .dep $(SRCS)
