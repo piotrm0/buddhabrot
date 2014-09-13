@@ -80,8 +80,8 @@ takeGLContext uistate = do
   return ()
 
 initUI =
-    let initWidth = (68 * 4) :: CInt in
-    let initHeight = (80 * 4) :: CInt in
+    let initWidth = (60 * 8) :: CInt in
+    let initHeight = (80 * 8) :: CInt in
 
     do
       ?log "initing SDL"

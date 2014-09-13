@@ -73,6 +73,12 @@ forMrangeAsync_ i j f =
       spawnThreads tg cores $ do doFromQueue q
       return tg
 
+async :: IO a -> IO (Thread.ThreadGroup)
+async f = do
+  tg <- Thread.new
+  tid <- Thread.forkIO tg f
+  return tg
+
 spawnThreads :: Thread.ThreadGroup -> Int -> (IO a) -> IO ()
 spawnThreads tg num f = do
   if num > 0 then do

@@ -11,11 +11,11 @@ uniform float scale3;
 uniform sampler2D tex;
 
 void main() {
-  color = vec4(0.0, 0.0, 0.0, 256.0);
+  color = vec4(0.0, 0.0, 0.0, 1.0);
   vec4 tex = texture(tex, texCoord);
-  color[0] = pow (tex[0] / scale0, 0.75);
-  color[1] = pow (tex[1] / scale1, 0.75);
-  color[2] = pow (tex[2] / scale2, 0.75);
+  color[0] = pow (tex[0] / scale0, 0.40);
+  color[1] = pow (tex[0] / scale0, 0.60);
+  color[2] = pow (tex[0] / scale0, 0.80);
 
   //color[3] = scale3;
 }
